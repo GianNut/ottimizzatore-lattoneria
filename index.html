@@ -262,7 +262,7 @@ const x=r.x*scala;
 const y=r.y*scala;
 const w=r.w*scala;
 const h=r.h*scala;
-const font=Math.max(9,Math.min(17,w/6,h/4));
+const font=Math.max(7,Math.min(17,w/6,h/4));
 
 svg+=`<rect x="${x}" y="${y}"
 width="${w}" height="${h}"
@@ -270,7 +270,7 @@ fill="#86efac" stroke="#166534"
 stroke-width="1"/>
 <text x="${x+w/2}" y="${y+h/2}"
 font-size="${font}" text-anchor="middle"
-fill="#14532d">#${r.p.id} ${r.p.l}×${r.p.sv}</text>`;
+fill="#14532d">#${r.p.id}  ${w >= 110 && h >= 25 ? `${r.p.l}×${r.p.sv}` : ""}</text>`;
 }
 
 svg+="</svg>";
@@ -278,7 +278,10 @@ svg+="</svg>";
 html+=`<div class="sheet">
 <h3>Taglio macchina ${i+1}: ${f.L} mm</h3>
 <p>Foglio: ${f.L} × ${W} mm</p>
-${svg}
+${svg}<p><strong>Legenda pezzi (misure in mm):</strong></p>
+<ul>
+${f.pezzi.map(r => `<li>Pezzo #${r.p.id}: ${r.p.l} × ${r.p.sv} mm</li>`).join('')}
+</ul>
 </div>`;
 });
 
