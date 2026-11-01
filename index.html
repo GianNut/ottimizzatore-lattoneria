@@ -1,302 +1,94 @@
-<!DOCTYPE html>
-<html lang="it">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Ottimizzatore Lattoneria</title>
-<style>
-body{font-family:Arial,sans-serif;background:#f1f5f9;margin:0;padding:18px;color:#172033}
-main{max-width:1050px;margin:auto}
-h1{font-size:25px}
-section{background:white;padding:16px;margin:15px 0;border-radius:10px;overflow-x:auto}
-table{border-collapse:collapse;width:100%}
-th,td{border:1px solid #cbd5e1;padding:8px;text-align:center}
-input{width:85px;max-width:90%;padding:7px}
-button{padding:9px 13px;margin:5px;background:#1765c1;color:white;border:0;border-radius:6px;cursor:pointer}
-.best{background:#d1fae5}
-.sheet{margin:20px 0;padding:12px;border:1px solid #cbd5e1}
-svg{display:block;width:100%;height:auto;max-height:650px;background:#fee2e2}
-small{color:#475569}
-@media print{button,.entry{display:none}section{break-inside:avoid}}
-</style>
-</head>
-<body>
-<main>
-<h1>Ottimizzatore Lattoneria</h1>
-<p>Inserisci quantità, lunghezza e sviluppo in millimetri.</p>
-<section class="entry">
-<table>
-<thead>
-<tr><th>Pezzi</th><th>Lunghezza</th><th>SV</th><th></th></tr>
-</thead>
-<tbody id="righe"></tbody>
-</table>
-<button onclick="aggiungi()">+ Aggiungi pezzo</button>
-<button onclick="calcola()">Ottimizza</button>
-</section>
-<div id="risultati"></div>
-</main>
+<!DOCTYPE html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ottimizzatore Lattoneria - Prova</title>
+<style>body{font-family:Arial;background:#edf4f7;color:#20313c;margin:0;padding:16px}main{max-width:1050px;margin:auto}section{background:white;border-radius:10px;padding:15px;margin:14px 0;overflow:auto}table{border-collapse:collapse;width:100%}td,th{border:1px solid #aec4cc;padding:7px;text-align:center}input{width:85px;max-width:90%;padding:7px}textarea{width:98%;min-height:75px;font:inherit;background:#eaf5ff;color:#111827;border:1px solid #8bb6d9;border-radius:6px;padding:10px;box-sizing:border-box}textarea::placeholder{color:#374151;opacity:1}button{background:#2563eb;color:white;border:0;border-radius:6px;padding:10px;margin:4px;cursor:pointer}button:hover{background:#1d4ed8}button:focus-visible{outline:3px solid #93c5fd;outline-offset:2px}.best{background:#d8f0f2}.sheet{border:1px solid #aec4cc;padding:10px;margin:15px 0}svg{display:block;width:100%;max-height:650px;background:#f3f8fa}small{color:#475569}@media print{button,.entry{display:none}section{break-inside:avoid}}</style></head><body><main><h1>Ottimizzatore Lattoneria — PROVA 10</h1><p>Misure in millimetri. Lo sviluppo comprende già la ribattitura normale di 15 mm.</p>
+<section class="entry"><h3>Detta l'ordine</h3><textarea id="dettato" placeholder="Tre pezzi lunghezza 2000 sviluppo 330, due pezzi lunghezza 1500 sviluppo 450"></textarea><br><button onclick="importa()">Inserisci pezzi dettati</button><p><small>Su iPhone tocca il campo e usa il microfono della tastiera. Controlla sempre i numeri prima di ottimizzare.</small></p>
+<table><thead><tr><th>Pezzi</th><th>Lunghezza</th><th>SV</th><th></th></tr></thead><tbody id="righe"></tbody></table><button onclick="aggiungi()">+ Aggiungi pezzo</button><button onclick="calcola()">Ottimizza</button></section><div id="risultati"></div></main>
 <script>
-const rotoli=[670,750,1000,1250];
-const esempio=[
-[2,4300,320],
-[4,2300,320],
-[2,1200,250],
-[6,3450,330]
-];
-let soluzioni={};
-
-function aggiungi(q=1,l="",sv=""){
-const tr=document.createElement("tr");
-tr.innerHTML=`
-<td><input type="number" min="1" value="${q}"></td>
-<td><input type="number" min="1" value="${l}"></td>
-<td><input type="number" min="1" value="${sv}"></td>
-<td><button onclick="this.closest('tr').remove()">X</button></td>`;
-document.getElementById("righe").appendChild(tr);
-}
-
+const rotoli=[670,750,1000,1250], esempio=[[2,4300,320],[4,2300,320],[2,1200,250],[6,3450,330]];let soluzioni={};
+function aggiungi(q=1,l="",sv=""){const tr=document.createElement("tr");for(const v of [q,l,sv]){let td=document.createElement("td"),i=document.createElement("input");i.type="number";i.min="1";i.value=v;td.appendChild(i);tr.appendChild(td)}let td=document.createElement("td"),b=document.createElement("button");b.textContent="X";b.onclick=()=>tr.remove();td.appendChild(b);tr.appendChild(td);document.getElementById("righe").appendChild(tr)}
 esempio.forEach(x=>aggiungi(...x));
-
-function disponi(W,pezzi,modo){
-const lista=[...pezzi].sort((a,b)=>{
-if(modo===0)return b.l-a.l||b.sv-a.sv;
-if(modo===1)return b.l*b.sv-a.l*a.sv;
-return b.sv-a.sv||b.l-a.l;
-});
-const fogli=[];
-
-for(const p of lista){
-let scelta=null;
-
-for(let i=0;i<fogli.length;i++){
-const f=fogli[i];
-
-for(let j=0;j<f.liberi.length;j++){
-const r=f.liberi[j];
-
-for(let rot=0;rot<2;rot++){
-const w=rot?p.l:p.sv;
-const h=rot?p.sv:p.l;
-
-if(w>r.w||h>r.h)continue;
-
-const crescita=Math.max(0,r.y+h-f.L);
-const punteggio=crescita*W+
-(r.w*r.h-w*h)*0.00001;
-
-if(!scelta||punteggio<scelta.punteggio){
-scelta={i,j,w,h,punteggio};
+const numeri={un:1,uno:1,una:1,due:2,tre:3,quattro:4,cinque:5,sei:6,sette:7,otto:8,nove:9,dieci:10};
+function numero(t){t=t.toLowerCase();return Object.hasOwn(numeri,t)?numeri[t]:Number(t)}
+function importa(){let testo=document.getElementById("dettato").value.toLowerCase().replace(/[.,;]/g," ");let re=/\b(\d+|un|uno|una|due|tre|quattro|cinque|sei|sette|otto|nove|dieci)\s+pezz[io]\s+lunghezza\s+(\d+)\s+sviluppo\s+(\d+)\b/g,match,n=0;while((match=re.exec(testo))){aggiungi(numero(match[1]),Number(match[2]),Number(match[3]));n++}alert(n?`Inserite ${n} righe: verifica le misure.`:"Formato non riconosciuto. Esempio: tre pezzi lunghezza 2000 sviluppo 330. Usa cifre per le misure.")}
+function disponi(W,pezzi,modo){const lista=[...pezzi].sort((a,b)=>modo===0?b.l-a.l||b.sv-a.sv:modo===1?b.l*b.sv-a.l*a.sv:b.sv-a.sv||b.l-a.l);const fogli=[];for(const p of lista){let scelta=null;for(let i=0;i<fogli.length;i++){const f=fogli[i];for(let j=0;j<f.liberi.length;j++){const r=f.liberi[j];for(let rot=0;rot<2;rot++){const w=rot?p.l:p.sv,h=rot?p.sv:p.l;if(w>r.w||h>r.h)continue;const crescita=Math.max(0,r.y+h-f.L),punteggio=crescita*W+(r.w*r.h-w*h)*0.00001;if(!scelta||punteggio<scelta.punteggio)scelta={i,j,w,h,punteggio}}}}if(!scelta){let w=p.sv,h=p.l;if(w>W){if(p.l<=W){w=p.l;h=p.sv}else throw Error("Un pezzo è troppo largo per il rotolo.")}const f={L:h,pezzi:[{x:0,y:0,w,h,p}],liberi:[]};if(W>w)f.liberi.push({x:w,y:0,w:W-w,h});fogli.push(f);continue}const f=fogli[scelta.i],r=f.liberi.splice(scelta.j,1)[0],{w,h}=scelta;f.pezzi.push({x:r.x,y:r.y,w,h,p});f.L=Math.max(f.L,r.y+h);if(r.w>w)f.liberi.push({x:r.x+w,y:r.y,w:r.w-w,h:r.h});if(r.h>h)f.liberi.push({x:r.x,y:r.y+h,w:r.w,h:r.h-h})}return fogli}
+function recupera(W,fogli){
+  let recuperato=0;
+  for(const f of fogli){
+    for(const r of f.pezzi)r.extra=0;
+    // Se i pezzi occupano l'intera lunghezza del foglio e sono
+    // affiancati senza spazi intermedi, ripartisce il residuo.
+    const righe=[...f.pezzi].sort((a,b)=>a.x-b.x);
+    const affiancati=righe.every((r,i)=>
+      r.y===0 && r.h===f.L &&
+      (i===0 ? r.x===0 : r.x===righe[i-1].x+righe[i-1].w));
+    const residuo=W-righe.reduce((s,r)=>s+r.w,0);
+    const candidati=righe.filter(r=>r.w===r.p.sv);
+    const capacita=candidati.length*25;
+    if(affiancati && residuo>0 && residuo<=capacita && candidati.length){
+      // Per non spostare pezzi già disposti, redistribuisce le x.
+      let daRipartire=residuo;
+      while(daRipartire>0){
+        const disponibili=candidati.filter(r=>r.extra<25);
+        if(!disponibili.length)break;
+        disponibili.sort((a,b)=>a.extra-b.extra || a.x-b.x);
+        disponibili[0].extra++;
+        daRipartire--;
+      }
+      let x=0;
+      for(const r of righe){
+        r.x=x;
+        r.w+=r.extra;
+        recuperato+=r.extra*r.h;
+        x+=r.w;
+      }
+      continue;
+    }
+    // Negli altri schemi usa solo gli spazi effettivamente liberi,
+    // senza spostare i pezzi e senza sovrapposizioni.
+    for(const r of righe){
+      if(r.w!==r.p.sv)continue;
+      const right=r.x+r.w;
+      let limite=W-right;
+      for(const altro of f.pezzi){
+        if(altro===r)continue;
+        if(altro.y<r.y+r.h && altro.y+altro.h>r.y && altro.x>=right)
+          limite=Math.min(limite,altro.x-right);
+      }
+      const extra=Math.max(0,Math.min(25,Math.floor(limite)));
+      if(extra>0){r.w+=extra;r.extra=extra;recuperato+=extra*r.h}
+    }
+  }
+  return recuperato;
 }
+function calcola(){try{const pezzi=[];for(const tr of document.querySelectorAll("#righe tr")){const [q,l,sv]=[...tr.querySelectorAll("input")].map(x=>Number(x.value));if(!Number.isInteger(q)||q<1||q>500||!Number.isInteger(l)||!Number.isInteger(sv)||l<=0||sv<=0)throw Error("Controlla quantità e misure.");for(let i=0;i<q;i++)pezzi.push({l,sv,id:pezzi.length+1})}if(!pezzi.length||pezzi.length>500)throw Error("Massimo 500 pezzi.");const area=pezzi.reduce((s,p)=>s+p.l*p.sv,0);soluzioni={};for(const W of rotoli){let tentativi=[];for(let m=0;m<3;m++){try{tentativi.push(disponi(W,pezzi,m))}catch(e){}}if(!tentativi.length)continue;tentativi.sort((a,b)=>a.reduce((s,f)=>s+f.L,0)-b.reduce((s,f)=>s+f.L,0));let fogli=tentativi[0],totale=fogli.reduce((s,f)=>s+f.L*W,0);let recuperato=recupera(W,fogli);soluzioni[W]={fogli,scarto:(totale-area-recuperato)/100,recuperato:recuperato/100,lunghezza:fogli.reduce((s,f)=>s+f.L,0)}}let disponibili=Object.keys(soluzioni).map(Number);if(!disponibili.length)throw Error("Nessun rotolo compatibile.");let migliore=disponibili.reduce((a,b)=>soluzioni[a].scarto<=soluzioni[b].scarto?a:b);let html='<section><h2>Confronto rotoli</h2><table><tr><th>Rotolo</th><th>Scarto (cm)</th><th>Fogli</th><th>Disegno</th></tr>';for(const W of rotoli){const s=soluzioni[W];html+=s?`<tr class="${W===migliore?'best':''}"><td>${W} mm ${W===migliore?'★':''}</td><td>Vedi fogli</td><td>${s.fogli.length}</td><td><button onclick="mostra(${W})">Visualizza</button></td></tr>`:`<tr><td>${W} mm</td><td>Non compatibile</td><td>-</td><td>-</td></tr>`}html+='</table><small>Lo scarto in cm indica la larghezza che avanza su ogni foglio. Controllare sempre il disegno prima del taglio.</small></section><div id="dettaglio"></div>';document.getElementById("risultati").innerHTML=html;mostra(migliore)}catch(e){alert(e.message)}}
+function mostra(W){const s=soluzioni[W];let html=`<section><h2>Rotolo ${W} mm</h2><p>Scarto espresso in centimetri di larghezza per ogni foglio.</p><button onclick="window.print()">Stampa schemi</button>`;s.fogli.forEach((f,i)=>{const scala=650/f.L,scalaX=650/W,larghezza=W*scalaX,altezza=f.L*scala;const ox=54,oy=39;
+let svg=`<svg viewBox="0 0 ${larghezza+ox+16} ${altezza+oy+16}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:850px;height:auto" aria-label="Schema con righello superiore della larghezza e laterale della lunghezza"><g transform="translate(${ox} ${oy})"><rect width="${larghezza}" height="${altezza}" fill="#facc15"/>`;
+// Righelli a tacche tipo metro: mm se visibili, cm e 5/10 cm marcati.
+// Stessa graduazione per entrambi gli assi.
+// Identica suddivisione metrica sui due righelli, su ogni foglio.
+function tacche(max,scala,orizzontale){
+ // Mantieni identica la densità VISIVA delle tacche sui due assi.
+ // Il verticale rappresenta molti più mm nello stesso spazio.
+ const passo=orizzontale ? 10 : Math.max(10,Math.round((10*scalaX/scala)/10)*10);
+ let out='';
+ for(let mm=0;mm<=max;mm+=passo){
+   const pos=orizzontale ? mm*scala : (max-mm)*scala;
+   const indice=Math.round(mm/passo);
+   const forte=indice%10===0,medio=indice%5===0,cent=true;
+   const len=forte?15:medio?12:cent?9:4;
+   if(orizzontale){
+     out+=`<line x1="${pos}" y1="${-len}" x2="${pos}" y2="0" stroke="#263c48" stroke-width="${forte?1.5:0.7}"/>`;
+     if(forte && pos>16 && pos<max*scala-16)out+=`<text x="${pos}" y="-20" font-size="9" text-anchor="middle" fill="#263c48">${mm}</text>`;
+   }else{
+     out+=`<line x1="${-len}" y1="${pos}" x2="0" y2="${pos}" stroke="#263c48" stroke-width="${forte?1.5:0.7}"/>`;
+     if(indice%10===0 && pos>8 && pos<max*scala-8)out+=`<text x="-19" y="${pos+3}" font-size="9" text-anchor="end" fill="#263c48">${mm}</text>`;
+   }
+ }
+ return out;
 }
-}
-}
-
-if(!scelta){
-let w=p.sv,h=p.l;
-
-if(w>W){
-if(p.l<=W){
-w=p.l;
-h=p.sv;
-}else{
-throw Error("Un pezzo è troppo largo per il rotolo.");
-}
-}
-
-const f={
-L:h,
-pezzi:[{x:0,y:0,w,h,p}],
-liberi:[]
-};
-
-if(W>w){
-f.liberi.push({x:w,y:0,w:W-w,h});
-}
-
-fogli.push(f);
-continue;
-}
-
-const f=fogli[scelta.i];
-const r=f.liberi.splice(scelta.j,1)[0];
-const {w,h}=scelta;
-
-f.pezzi.push({x:r.x,y:r.y,w,h,p});
-f.L=Math.max(f.L,r.y+h);
-
-if(r.w>w){
-f.liberi.push({
-x:r.x+w,y:r.y,w:r.w-w,h:r.h
-});
-}
-
-if(r.h>h){
-f.liberi.push({
-x:r.x,y:r.y+h,w:r.w,h:r.h-h
-});
-}
-}
-
-return fogli;
-}
-
-function calcola(){
-try{
-const pezzi=[];
-
-for(const tr of document.querySelectorAll("#righe tr")){
-const v=[...tr.querySelectorAll("input")]
-.map(x=>Number(x.value));
-const [q,l,sv]=v;
-
-if(!Number.isInteger(q)||q<1||q>500||
-!Number.isFinite(l)||!Number.isFinite(sv)||
-l<=0||sv<=0){
-throw Error("Controlla quantità e misure.");
-}
-
-for(let i=0;i<q;i++){
-pezzi.push({l,sv,id:pezzi.length+1});
-}
-}
-
-if(pezzi.length>500){
-throw Error("Massimo 500 pezzi.");
-}
-
-const area=pezzi.reduce((s,p)=>s+p.l*p.sv,0);
-soluzioni={};
-
-for(const W of rotoli){
-const tentativi=[];
-
-for(let m=0;m<3;m++){
-try{
-tentativi.push(disponi(W,pezzi,m));
-}catch(e){}
-}
-
-if(!tentativi.length)continue;
-
-tentativi.sort((a,b)=>
-a.reduce((s,f)=>s+f.L,0)-
-b.reduce((s,f)=>s+f.L,0)
-);
-
-const fogli=tentativi[0];
-const totale=fogli.reduce((s,f)=>s+f.L*W,0);
-
-soluzioni[W]={
-fogli,
-scarto:(totale-area)/totale*100
-};
-}
-
-const disponibili=Object.keys(soluzioni).map(Number);
-
-if(!disponibili.length){
-throw Error("Nessun rotolo compatibile.");
-}
-
-const migliore=disponibili.reduce((a,b)=>
-soluzioni[a].scarto<=soluzioni[b].scarto?a:b
-);
-
-let html=`<section><h2>Confronto rotoli</h2>
-<table><tr>
-<th>Rotolo</th><th>Scarto</th>
-<th>Fogli</th><th>Disegno</th>
-</tr>`;
-
-for(const W of rotoli){
-if(!soluzioni[W]){
-html+=`<tr><td>${W} mm</td>
-<td>Non compatibile</td><td>-</td><td>-</td></tr>`;
-continue;
-}
-
-const s=soluzioni[W];
-
-html+=`<tr class="${W===migliore?'best':''}">
-<td>${W} mm ${W===migliore?'★':''}</td>
-<td>${s.scarto.toFixed(2)}%</td>
-<td>${s.fogli.length}</td>
-<td><button onclick="mostra(${W})">Visualizza</button></td>
-</tr>`;
-}
-
-html+=`</table>
-<p><small>Il rotolo evidenziato ha il minor scarto
-tra le disposizioni trovate.</small></p>
-</section><div id="dettaglio"></div>`;
-
-document.getElementById("risultati").innerHTML=html;
-mostra(migliore);
-
-}catch(e){
-alert(e.message);
-}
-}
-
-function mostra(W){
-const s=soluzioni[W];
-
-let html=`<section>
-<h2>Rotolo ${W} mm</h2>
-<p>Scarto stimato: ${s.scarto.toFixed(2)}%</p>
-<button onclick="window.print()">Stampa schemi</button>`;
-
-s.fogli.forEach((f,i)=>{
-const scala=600/Math.max(W,f.L);
-const larghezza=W*scala;
-const altezza=f.L*scala;
-
-let svg=`<svg viewBox="0 0 ${larghezza} ${altezza}"
-xmlns="http://www.w3.org/2000/svg">
-<rect width="${larghezza}" height="${altezza}"
-fill="#fecaca"/>`;
-
-for(const r of f.pezzi){
-const x=r.x*scala;
-const y=r.y*scala;
-const w=r.w*scala;
-const h=r.h*scala;
-const font=Math.max(7,Math.min(17,w/6,h/4));
-
-svg+=`<rect x="${x}" y="${y}"
-width="${w}" height="${h}"
-fill="#86efac" stroke="#166534"
-stroke-width="1"/>
-<text x="${x+w/2}" y="${y+h/2}"
-font-size="${font}" text-anchor="middle"
-fill="#14532d">#${r.p.id}  ${w >= 110 && h >= 25 ? `${r.p.l}×${r.p.sv}` : ""}</text>`;
-}
-
-svg+="</svg>";
-
-html+=`<div class="sheet">
-<h3>Taglio macchina ${i+1}: ${f.L} mm</h3>
-<p>Foglio: ${f.L} × ${W} mm</p>
-${svg}<p><strong>Legenda pezzi (misure in mm):</strong></p>
-<ul>
-${f.pezzi.map(r => `<li>Pezzo #${r.p.id}: ${r.p.l} × ${r.p.sv} mm</li>`).join('')}
-</ul>
-</div>`;
-});
-
-html+=`<p><small>
-Verde: pezzi dell'ordine. Rosso: avanzo.
-Ottimizzazione indicativa: non garantisce lo scarto
-minimo assoluto. Non considera lo spessore del taglio,
-le tolleranze e tutti i vincoli della cesoia.
-Verificare gli schemi prima di tagliare.
-</small></p></section>`;
-
-document.getElementById("dettaglio").innerHTML=html;
-}
-
-calcola();
-</script>
-</body>
-</html>
+svg+=tacche(W,scalaX,true)+tacche(f.L,scala,false);
+svg+=`<text x="-19" y="${altezza+3}" font-size="9" text-anchor="end" fill="#263c48">0</text><text x="-19" y="3" font-size="9" text-anchor="end" fill="#263c48">${f.L}</text>`;
+svg+=`<text x="0" y="-23" font-size="9" fill="#263c48">0</text>`;
+for(const r of f.pezzi){const x=r.x*scalaX,y=r.y*scala,w=r.w*scalaX,h=r.h*scala,font=Math.max(7,Math.min(17,w/6,h/4));const label=`${r.p.l}×${r.p.sv+r.extra}`;svg+=`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#63b6c5" stroke="#145568" stroke-width="1"/><text x="${x+w/2}" y="${y+h/2}" font-size="${font}" text-anchor="middle" fill="#123b4a">${w>55&&h>20?label:'#'+r.p.id}</text>`}svg+='</g></svg>';const interi=f.pezzi.every(r=>r.y===0&&r.h===f.L);
+const scartoCm=interi?((W-f.pezzi.reduce((t,r)=>t+r.w,0))/10).toFixed(1)+' cm':'variabile (vedi disegno)';
+html+=`<div class="sheet"><h3>Taglio macchina ${i+1}: ${f.L} mm</h3><p>Foglio: ${f.L} × ${W} mm — <strong>Scarto: ${scartoCm}</strong></p><small>Azzurro: pezzi (ribattitura compresa). Giallo: scarto residuo non assegnato. Righelli in mm: sopra larghezza, a sinistra lunghezza. Disegno allargato per leggibilità; tacche graduate per avere lo stesso aspetto visivo sui due assi.</small><br>${svg}<p><strong>Legenda pezzi (mm):</strong></p><ul>${f.pezzi.map(r=>`<li>Pezzo #${r.p.id}: taglio ${r.p.l} × ${r.p.sv+r.extra} mm; ribattitura ${15+r.extra} mm ${r.extra?'(maggiorata)':''}</li>`).join('')}</ul></div>`});html+='<p><small>VERIFICA: prototipo. Recupero considerato solo per strisce laterali senza ostacoli, su pezzi non ruotati. Non include tolleranze, spessore di taglio e vincoli di cesoia. Controllare ogni taglio prima della produzione.</small></p></section>';document.getElementById("dettaglio").innerHTML=html}calcola();
+</script></body></html>
