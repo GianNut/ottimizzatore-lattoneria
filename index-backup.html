@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ottimizzatore Lattoneria</title>
+<style>
+body{font-family:Arial,sans-serif;background:#f1f5f9;margin:0;padding:18px;color:#172033}
+main{max-width:1050px;margin:auto}
+h1{font-size:25px}
+section{background:white;padding:16px;margin:15px 0;border-radius:10px;overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+th,td{border:1px solid #cbd5e1;padding:8px;text-align:center}
+input{width:85px;max-width:90%;padding:7px}
+button{padding:9px 13px;margin:5px;background:#1765c1;color:white;border:0;border-radius:6px;cursor:pointer}
+.best{background:#d1fae5}
+.sheet{margin:20px 0;padding:12px;border:1px solid #cbd5e1}
+svg{display:block;width:100%;height:auto;max-height:650px;background:#fee2e2}
+small{color:#475569}
+@media print{button,.entry{display:none}section{break-inside:avoid}}
+</style>
+</head>
+<body>
+<main>
+<h1>Ottimizzatore Lattoneria</h1>
+<p>Inserisci quantità, lunghezza e sviluppo in millimetri.</p>
+<section class="entry">
+<table>
+<thead>
+<tr><th>Pezzi</th><th>Lunghezza</th><th>SV</th><th></th></tr>
+</thead>
+<tbody id="righe"></tbody>
+</table>
+<button onclick="aggiungi()">+ Aggiungi pezzo</button>
+<button onclick="calcola()">Ottimizza</button>
+</section>
+<div id="risultati"></div>
+</main>
+<script>
+const rotoli=[670,750,1000,1250];
+const esempio=[
+[2,4300,320],
+[4,2300,320],
+[2,1200,250],
+[6,3450,330]
+];
+let soluzioni={};
+
+function aggiungi(q=1,l="",sv=""){
+const tr=document.createElement("tr");
+tr.innerHTML=`
+<td><input type="number" min="1" value="${q}"></td>
+<td><input type="number" min="1" value="${l}"></td>
+<td><input type="number" min="1" value="${sv}"></td>
+<td><button onclick="this.closest('tr').remove()">X</button></td>`;
+document.getElementById("righe").appendChild(tr);
+}
+
+esempio.forEach(x=>aggiungi(...x));
+
+function disponi(W,pezzi,modo){
+const lista=[...pezzi].sort((a,b)=>{
+if(modo===0)return b.l-a.l||b.sv-a.sv;
+if(modo===1)return b.l*b.sv-a.l*a.sv;
+return b.sv-a.sv||b.l-a.l;
+});
+const fogli=[];
+
+for(const p of lista){
+let scelta=null;
+
+for(let i=0;i<fogli.length;i++){
+const f=fogli[i];
+
+for(let j=0;j<f.liberi.length;j++){
+const r=f.liberi[j];
+
+for(let rot=0;rot<2;rot++){
+const w=rot?p.l:p.sv;
+const h=rot?p.sv:p.l;
+
+if(w>r.w||h>r.h)continue;
+
+const crescita=Math.max(0,r.y+h-f.L);
+const punteggio=crescita*W+
+(r.w*r.h-w*h)*0.00001;
+
+if(!scelta||punteggio<scelta.punteggio){
+scelta={i,j,w,h,punteggio};
+}
+}
+}
+}
+
+if(!scelta){
+let w=p.sv,h=p.l;
+
+if(w>W){
+if(p.l<=W){
+w=p.l;
+h=p.sv;
+}else{
+throw Error("Un pezzo è troppo largo per il rotolo.");
+}
+}
+
+const f={
+L:h,
+pezzi:[{x:0,y:0,w,h,p}],
+liberi:[]
+};
+
+if(W>w){
+f.liberi.push({x:w,y:0,w:W-w,h});
+}
+
+fogli.push(f);
+continue;
+}
+
+const f=fogli[scelta.i];
+const r=f.liberi.splice(scelta.j,1)[0];
+const {w,h}=scelta;
+
+f.pezzi.push({x:r.x,y:r.y,w,h,p});
+f.L=Math.max(f.L,r.y+h);
+
+if(r.w>w){
+f.liberi.push({
+x:r.x+w,y:r.y,w:r.w-w,h:r.h
+});
+}
+
+if(r.h>h){
+f.liberi.push({
+x:r.x,y:r.y+h,w:r.w,h:r.h-h
+});
+}
+}
+
+return fogli;
+}
+
+function calcola(){
+try{
+const pezzi=[];
+
+for(const tr of document.querySelectorAll("#righe tr")){
+const v=[...tr.querySelectorAll("input")]
+.map(x=>Number(x.value));
+const [q,l,sv]=v;
+
+if(!Number.isInteger(q)||q<1||q>500||
+!Number.isFinite(l)||!Number.isFinite(sv)||
+l<=0||sv<=0){
+throw Error("Controlla quantità e misure.");
+}
+
+for(let i=0;i<q;i++){
+pezzi.push({l,sv,id:pezzi.length+1});
+}
+}
+
+if(pezzi.length>500){
+throw Error("Massimo 500 pezzi.");
+}
+
+const area=pezzi.reduce((s,p)=>s+p.l*p.sv,0);
+soluzioni={};
+
+for(const W of rotoli){
+const tentativi=[];
+
+for(let m=0;m<3;m++){
+try{
+tentativi.push(disponi(W,pezzi,m));
+}catch(e){}
+}
+
+if(!tentativi.length)continue;
+
+tentativi.sort((a,b)=>
+a.reduce((s,f)=>s+f.L,0)-
+b.reduce((s,f)=>s+f.L,0)
+);
+
+const fogli=tentativi[0];
+const totale=fogli.reduce((s,f)=>s+f.L*W,0);
+
+soluzioni[W]={
+fogli,
+scarto:(totale-area)/totale*100
+};
+}
+
+const disponibili=Object.keys(soluzioni).map(Number);
+
+if(!disponibili.length){
+throw Error("Nessun rotolo compatibile.");
+}
+
+const migliore=disponibili.reduce((a,b)=>
+soluzioni[a].scarto<=soluzioni[b].scarto?a:b
+);
+
+let html=`<section><h2>Confronto rotoli</h2>
+<table><tr>
+<th>Rotolo</th><th>Scarto</th>
+<th>Fogli</th><th>Disegno</th>
+</tr>`;
+
+for(const W of rotoli){
+if(!soluzioni[W]){
+html+=`<tr><td>${W} mm</td>
+<td>Non compatibile</td><td>-</td><td>-</td></tr>`;
+continue;
+}
+
+const s=soluzioni[W];
+
+html+=`<tr class="${W===migliore?'best':''}">
+<td>${W} mm ${W===migliore?'★':''}</td>
+<td>${s.scarto.toFixed(2)}%</td>
+<td>${s.fogli.length}</td>
+<td><button onclick="mostra(${W})">Visualizza</button></td>
+</tr>`;
+}
+
+html+=`</table>
+<p><small>Il rotolo evidenziato ha il minor scarto
+tra le disposizioni trovate.</small></p>
+</section><div id="dettaglio"></div>`;
+
+document.getElementById("risultati").innerHTML=html;
+mostra(migliore);
+
+}catch(e){
+alert(e.message);
+}
+}
+
+function mostra(W){
+const s=soluzioni[W];
+
+let html=`<section>
+<h2>Rotolo ${W} mm</h2>
+<p>Scarto stimato: ${s.scarto.toFixed(2)}%</p>
+<button onclick="window.print()">Stampa schemi</button>`;
+
+s.fogli.forEach((f,i)=>{
+const scala=600/Math.max(W,f.L);
+const larghezza=W*scala;
+const altezza=f.L*scala;
+
+let svg=`<svg viewBox="0 0 ${larghezza} ${altezza}"
+xmlns="http://www.w3.org/2000/svg">
+<rect width="${larghezza}" height="${altezza}"
+fill="#fecaca"/>`;
+
+for(const r of f.pezzi){
+const x=r.x*scala;
+const y=r.y*scala;
+const w=r.w*scala;
+const h=r.h*scala;
+const font=Math.max(7,Math.min(17,w/6,h/4));
+
+svg+=`<rect x="${x}" y="${y}"
+width="${w}" height="${h}"
+fill="#86efac" stroke="#166534"
+stroke-width="1"/>
+<text x="${x+w/2}" y="${y+h/2}"
+font-size="${font}" text-anchor="middle"
+fill="#14532d">#${r.p.id}  ${w >= 110 && h >= 25 ? `${r.p.l}×${r.p.sv}` : ""}</text>`;
+}
+
+svg+="</svg>";
+
+html+=`<div class="sheet">
+<h3>Taglio macchina ${i+1}: ${f.L} mm</h3>
+<p>Foglio: ${f.L} × ${W} mm</p>
+${svg}<p><strong>Legenda pezzi (misure in mm):</strong></p>
+<ul>
+${f.pezzi.map(r => `<li>Pezzo #${r.p.id}: ${r.p.l} × ${r.p.sv} mm</li>`).join('')}
+</ul>
+</div>`;
+});
+
+html+=`<p><small>
+Verde: pezzi dell'ordine. Rosso: avanzo.
+Ottimizzazione indicativa: non garantisce lo scarto
+minimo assoluto. Non considera lo spessore del taglio,
+le tolleranze e tutti i vincoli della cesoia.
+Verificare gli schemi prima di tagliare.
+</small></p></section>`;
+
+document.getElementById("dettaglio").innerHTML=html;
+}
+
+calcola();
+</script>
+</body>
+</html>
